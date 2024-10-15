@@ -7,6 +7,7 @@ from sklearn.model_selection import train_test_split
 from .llmchain import LLMChain
 import json, os
 import random
+from tqdm.notebook import tqdm
 
 def scorer_text(text):
     #return text
@@ -27,6 +28,7 @@ class LLMCascade(object):
                  batch_build = False,
                  ):
         # Initialization code for the FrugalGPT class
+        self.prefix = " "
         self.MyLLMEngine = LLMVanilla(db_path=db_path)    
         self.MyScores = dict()
         self.LLMChain = LLMChain(metric=metric)
@@ -117,7 +119,39 @@ class LLMCascade(object):
         self.build_cascade(model_perf_train, scorers = scorers, budget=budget, cascade_depth=cascade_depth,metric=metric)
         return model_perf_test
     
-    def get_completion(self, query,genparams):
+    # def get_completion(self, query,genparams):
+    #     LLMChain = self.LLMChain
+    #     MyLLMEngine = self.MyLLMEngine
+    #     cost = 0 
+    #     LLMChain.reset()
+    #     prefix = self.prefix
+    #     while(1):
+    #         service_name, score_thres = LLMChain.nextAPIandScore()
+    #         if(service_name==None):
+    #             break
+    #         res = MyLLMEngine.get_completion(query=query,service_name=service_name,genparams=genparams)
+    #         cost += MyLLMEngine.get_cost()
+    #         t1 = query+" "+res
+    #         t2 = t1.removeprefix(prefix)
+    #         score = self.MyScores[service_name].get_score(scorer_text(t2))
+    #         if(self.score_noise_injection==True):
+    #           score+=random.random()*self.eps
+    #         #print("score and score thres:",service_name,score,score_thres)
+    #         if(score>1-score_thres):
+    #             break
+    #     self.cost = cost
+    #     return res
+
+    # def get_completion_batch(self, queries, genparams):
+    #     result = list()
+    #     for query in queries:
+    #         ans1 = self.get_completion(query=query[0], genparams=genparams)
+    #         cost = self.get_cost()
+    #         result.append({'_id':query[2],'answer':ans1,'ref_answer':query[1],'cost':cost})
+    #     result = pandas.DataFrame(result)
+    #     return result
+    
+    def get_completion(self, query, genparams):
         LLMChain = self.LLMChain
         MyLLMEngine = self.MyLLMEngine
         cost = 0 
@@ -125,27 +159,32 @@ class LLMCascade(object):
         prefix = self.prefix
         while(1):
             service_name, score_thres = LLMChain.nextAPIandScore()
-            if(service_name==None):
+            if(service_name is None):
                 break
-            res = MyLLMEngine.get_completion(query=query,service_name=service_name,genparams=genparams)
+            # answer get from data
+            res = query[3][service_name.split("/")[1]]
             cost += MyLLMEngine.get_cost()
-            t1 = query+" "+res
+            # print("now service_name",service_name)
+            # print("query",query)
+            # print("res",res)
+            t1 = query[0] + " " + res
             t2 = t1.removeprefix(prefix)
             score = self.MyScores[service_name].get_score(scorer_text(t2))
-            if(self.score_noise_injection==True):
-              score+=random.random()*self.eps
-            #print("score and score thres:",service_name,score,score_thres)
-            if(score>1-score_thres):
+            # print("score and score thres:",score,score_thres)
+            if self.score_noise_injection:
+                score += random.random() * self.eps
+            if score > 1 - score_thres:
+                # print("stop at",service_name)
                 break
         self.cost = cost
         return res
 
     def get_completion_batch(self, queries, genparams):
         result = list()
-        for query in queries:
-            ans1 = self.get_completion(query=query[0], genparams=genparams)
+        for query in tqdm(queries, desc="Collecting results"):
+            ans1 = self.get_completion(query, genparams=genparams)
             cost = self.get_cost()
-            result.append({'_id':query[2],'answer':ans1,'ref_answer':query[1],'cost':cost})
+            result.append({'_id': query[2], 'answer': ans1, 'ref_answer': query[1], 'cost': cost})
         result = pandas.DataFrame(result)
         return result
         
