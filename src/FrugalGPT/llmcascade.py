@@ -209,7 +209,8 @@ class LLMCascade(object):
             temp['answer'] = data[i][3][service_name.split("/")[1]]
             # temp['answer'] = MyLLMEngine.get_completion(query=query,service_name=service_name,genparams=genparams)
             # temp['latency'] = MyLLMEngine.get_latency()
-            temp['cost'] = MyLLMEngine.get_cost()
+            # temp['cost'] = MyLLMEngine.get_cost()
+            temp['cost'] = MyLLMEngine.compute_cost(query, data[i][3][service_name.split("/")[1]], service_name=service_name)
             result.append(temp)
         return result
  

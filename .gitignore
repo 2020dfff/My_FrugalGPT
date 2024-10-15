@@ -6,3 +6,5 @@ scorer_location/
 logs/
 *__pycache__/
 results/
+ml/
+summary/

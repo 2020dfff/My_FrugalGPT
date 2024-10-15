@@ -53,7 +53,7 @@ class ModelService:
 
 class APIModelProvider(ModelService):
     """Provider that calculates conditional logprobs through a REST API"""
-    _CONFIG = json.load(open("config/serviceinfo.json"))
+    _CONFIG = json.load(open("config/serviceinfo_thrift.json"))
     def getcompletion(self,
                       context,
                       use_save=False,
