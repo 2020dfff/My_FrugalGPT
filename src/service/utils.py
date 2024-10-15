@@ -101,7 +101,9 @@ def evaluate_batch(answers, labels):
     prefix = str(int(time.time()*1000000))
     pred_path = "temp/temp_completion_json"+prefix+".json"
     write_json(pred_path,answers)
+    # print("Debug: write to",pred_path)
     true_path = "temp/temp_true_json"+prefix+".json"
+    # print("Debug: write to",true_path)
     write_json(true_path,labels)
     metrics = eval(pred_path,true_path) 
     os.remove(true_path)
@@ -143,6 +145,8 @@ def normalize_answer(s,normal_method=""):
         return re.findall('\([a-zA-Z]\)', text)[-1]
     if(normal_method=="mc"):
         return mc_remove(s)
+    if not isinstance(s, str):
+        s = str(s)
     return white_space_fix(remove_articles(remove_punc(lower(s))))
 
 
@@ -218,6 +222,8 @@ def update_sp(metrics, prediction, gold):
     return em, prec, recall
 
 def eval(prediction_file, gold_file):
+    # print("Debug: prediction file is",prediction_file)
+    # print("Debug: gold file is",gold_file)
     with open(prediction_file) as f:
         prediction = json.load(f)
     with open(gold_file) as f:
@@ -233,12 +239,15 @@ def eval(prediction_file, gold_file):
         #'em_batch_list':[],
         }
     for dp in gold:
-        cur_id = dp['_id']
+        cur_id = str(dp['_id'])
+        # cur_id = dp['_id']
         can_eval_joint = True
         #print(prediction['answer'])
 
         #prediction['answer'][cur_id]
         if cur_id not in prediction['answer']:
+            # print("Debug: Now the cur_id is",cur_id)
+            # print("Debug: Now the prediction is",prediction)
             print('missing answer {}'.format(cur_id))
             can_eval_joint = False
         else:

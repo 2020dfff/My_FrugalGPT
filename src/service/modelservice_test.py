@@ -7,10 +7,10 @@ def main():
                         default="Question: Who is the president of the US? Answer:",
                         help='query') 
     parser.add_argument('--model_name', type=str, 
-                        default="claude-1",
+                        default="Gemini-1.5 Flash",
                         help='model_name') 
     parser.add_argument('--provider', type=str, 
-                        default="anthropic",
+                        default="gemini",
                         help='provider')                         
     args = parser.parse_args()
     context = args.query  

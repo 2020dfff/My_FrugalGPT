@@ -4,7 +4,7 @@ import time
 import pickle
 import cohere
 import json
-from .utils import compute_cost
+from .utils import compute_cost # .utils
 import os
 import anthropic
 #from transformers import CodeGenTokenizerFast
@@ -213,6 +213,63 @@ class OpenAIModelProvider(APIModelProvider):
             tk2 = 0
             
         return tk1, tk2  
+    
+
+class GeminiModelProvider(APIModelProvider):
+    _ENDPOINT = os.environ.get("GEMINI_ENDPOINT", "https://api.gemini.com/v1/completions")
+    _API_KEY = os.environ.get('GOOGLE_API_KEY', None)
+    _NAME = "gemini"
+
+    def __init__(self, model):
+        self._model = model
+        # assert self._API_KEY is not None, "Please set GOOGLE_API_KEY env var for running through Gemini"
+
+    def _request_format(self, context, genparams):
+        req = {
+            "model": self._model,
+            "prompt": context,
+            "max_tokens": genparams.max_tokens,
+            "temperature": genparams.temperature,
+            "stop": genparams.stop
+        }
+        return req
+
+    def _response_format(self, response):
+        result = dict()
+        result['raw'] = response
+        result["completion"] = response['choices'][0]['text']
+        return result
+
+    def _get_io_tokens(self, context, completion):
+        tk1 = len(tokenizer_FFAI(context)['input_ids'])
+        tk2 = len(tokenizer_FFAI(completion['completion'])['input_ids'])
+        return tk1, tk2
+
+    def _api_call(self, endpoint, data, api_key, retries=10, retry_grace_time=10):
+        for i in range(retries):
+            try:
+                res = requests.post(
+                    endpoint,
+                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                    json=data,
+                    timeout=60
+                )
+                res.raise_for_status()
+                break
+            except (requests.exceptions.Timeout, requests.exceptions.RequestException):
+                print("timeout, retry")
+                time.sleep(retry_grace_time)
+                continue
+
+            if res.status_code == 200:
+                self.response = res
+                return res.json()
+            else:
+                print(f"API call failed with {res}. Waiting {retry_grace_time} seconds")
+                time.sleep(retry_grace_time)
+        raise TimeoutError(f"API request failed {retries} times, giving up!")
+    
+
     
 class OpenAIChatModelProvider(APIModelProvider):
     _ENDPOINT = os.environ.get("OPENAICHAT_ENDPOINT", "https://api.openai.com/v1/chat/completions")
@@ -467,8 +524,8 @@ class AnthropicModelProvider(APIModelProvider):
     def __init__(self, model):
         self._model = model
         assert self._API_KEY is not None, "Please set ANTHROPIC_API_KEY env var for running through OpenAI"
-        self.client = anthropic.Client(os.environ['ANTHROPIC_API_KEY'])
-        #self.client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+        # self.client = anthropic.Client(os.environ['ANTHROPIC_API_KEY'])
+        self.client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
     def _request_format(self,
                         context,
@@ -546,15 +603,34 @@ class TogetherAIModelProvider(APIModelProvider):
         tk2 = completion['raw'].get('usage', {}).get('completion_tokens', 0)
         return tk1, tk2
 
+class AzureModelProvider(APIModelProvider):
+    # _ENDPOINT = 
+    _API_KEY = "No need for Azure"
+    _NAME = "azure"
+    def __init__(self, model):
+        self._model = model
+        assert self._API_KEY is not None, "Please set AI21_STUDIO_API_KEY env var for running through AI21 Studio"
+
+class DeepInfraModelProvider(APIModelProvider):
+    # _ENDPOINT = os.environ.get("DEEPINFRA_ENDPOINT", "https://api.deepinfra.com/v1/engines/{engine}/completions")
+    _API_KEY = "No need for DeepInfra"
+    _NAME = "deepinfra"
+    def __init__(self, model):
+        self._model = model
+        assert self._API_KEY is not None, "Please set DEEPINFRA_API_KEY env var for running through DeepInfra"
+
 _PROVIDER_MAP = {
-    "openai": OpenAIModelProvider, # cleaned
-    "ai21": AI21ModelProvider, # cleaned
-    "cohere":CohereAIModelProvider, # cleaned
-    "forefrontai":ForeFrontAIModelProvider, # cleaned
-    "textsynth":TextSynthModelProvider, # cleaned
+    # "openai": OpenAIModelProvider, # cleaned
+    # "ai21": AI21ModelProvider, # cleaned
+    # "cohere":CohereAIModelProvider, # cleaned
+    # "forefrontai":ForeFrontAIModelProvider, # cleaned
+    # "textsynth":TextSynthModelProvider, # cleaned
     "openaichat":OpenAIChatModelProvider,# cleaned
-    "anthropic":AnthropicModelProvider,
-    "togetherai":TogetherAIModelProvider,
+    # "anthropic":AnthropicModelProvider,
+    "google": GeminiModelProvider,  # 
+    # "togetherai":TogetherAIModelProvider,
+    "azure": AzureModelProvider,
+    "deepinfra": DeepInfraModelProvider,
 }
 
 

@@ -137,7 +137,7 @@ class LLMChain(Strategy):
         self.model_ids = model_ids
         self.thres = thres
         self.quantile = quantile
-        #print("finish training!")
+        print("finish training!")
         # 3 save 
         self.savestrategy()
         return 

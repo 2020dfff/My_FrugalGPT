@@ -7,7 +7,7 @@ def help():
     print("LLMCascade, and LLMforAll!")
     return 
 
-def getservicename(configpath='config/serviceinfo.json'):
+def getservicename(configpath='config/serviceinfo_thrift.json'):
     service = json.load(open(configpath))
     names = [provider + "/" + name for provider in service.keys() for name in service[provider]]
     return names

@@ -20,6 +20,8 @@ def compute_distance_batch(responses,selected_id,scores):
     
 
 def compute_loss_and_cost_batch(response,labels,metric):
+    # print("Debug: response is",response)
+    # print("Debug: labels is",labels)
     results_eval = utils.evaluate_batch(response,labels)
     costs = results_eval['cost_list']
     loss = results_eval[metric+"_list"]

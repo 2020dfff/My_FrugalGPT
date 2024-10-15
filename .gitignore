@@ -1,0 +1,8 @@
+data/
+db/
+strategy/
+scorer_location/
+*.DS_Store
+logs/
+*__pycache__/
+results/

@@ -127,7 +127,7 @@ class LLMVanilla(object):
                                          use_save=use_save,
                                          genparams=genparams)
             mydict[key] = completion
-            #print("do not use stored results!")
+            print("do not use stored results!")
         try:
             cost =completion['cost']
         except:

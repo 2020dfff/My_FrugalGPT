@@ -100,10 +100,11 @@ class LLMCascade(object):
         self.prefix = prefix
         # Three major steps
         # Step 1: evaluate all services on the given dataset
-        train, test = train_test_split(trainingdata, test_size=0.01)
-        #print("train and test size",len(train),len(test))
+        train, test = train_test_split(trainingdata, test_size=0.2)
+        print("train and test size",len(train),len(test))
         model_perf_train = self.evaluateall(train,service_names=service_names,metric=metric,genparams=genparams)
         model_perf_test = self.evaluateall(test,service_names=service_names,metric=metric,genparams=genparams)
+        # print("model_perf_train",model_perf_train)
         # Step 2: Build the scorer
         if(no_scorer_train):
             #print("directly get the scorers")
@@ -166,8 +167,9 @@ class LLMCascade(object):
             temp['true_answer']= data[i][1] 
             temp['_id'] = data[i][2]
             temp['query'] = query
-            temp['answer'] = MyLLMEngine.get_completion(query=query,service_name=service_name,genparams=genparams)
-            temp['latency'] = MyLLMEngine.get_latency()
+            temp['answer'] = data[i][3][service_name.split("/")[1]]
+            # temp['answer'] = MyLLMEngine.get_completion(query=query,service_name=service_name,genparams=genparams)
+            # temp['latency'] = MyLLMEngine.get_latency()
             temp['cost'] = MyLLMEngine.get_cost()
             result.append(temp)
         return result
@@ -186,6 +188,8 @@ class LLMCascade(object):
         #print("res_and_eval",res_and_eval)
         #traintext = list((res_and_eval['query']+res_and_eval['answer']).apply(scorer_text))
         prefix = self.prefix
+        res_and_eval['query'] = res_and_eval['query'].apply(lambda x: str(x) if not isinstance(x, str) else x)
+        res_and_eval['answer'] = res_and_eval['answer'].apply(lambda x: str(x) if not isinstance(x, str) else x)
         #traintext = list((res_and_eval['query'] + res_and_eval['answer']).apply(lambda x: scorer_text(x).removeprefix(prefix)))
         traintext = list((res_and_eval['query'] +" "+ res_and_eval['answer']).apply(lambda x: scorer_text(x.removeprefix(prefix))))
 
@@ -253,9 +257,9 @@ class LLMCascade(object):
             responses[key] = table2json(model_perf_test[key])
             scores[key] = self.get_scores(model_perf_test[key],name=key)
             tempsave(labels,responses[key],scores[key],key)
-        #print("responses",responses)  
-        #print("labels",labels) 
-        #print("scores",scores)
+        # print("responses",responses)  
+        # print("labels",labels) 
+        # print("scores",scores)
         self.responses = responses
         self.labels = labels
         self.scores = scores         
