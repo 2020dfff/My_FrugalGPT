@@ -49,23 +49,39 @@ class LLMVanilla(object):
     
     def get_cost(self,):
         return self.cost
+
+    def load_service_info(self):
+        with open('config/serviceinfo_thrift.json', 'r') as f:
+            service_info = json.load(f)
+        return service_info
     
     def compute_cost(self,
                      input_text,
                      output_text,
                      service_name):
+        if not isinstance(input_text, str):
+            input_text = str(input_text)
+        if not isinstance(output_text, str):
+            output_text = str(output_text)
         cost = 0
         input_size = len(tokenizer(input_text)['input_ids'])
+        # print("Debug: input_size is", input_size)
         gen_size = len(tokenizer(output_text)['input_ids']) 
+        # print("Debug: gen_size is", gen_size)
         
-        service_all = self.service_name
-    
-        
-        cost_output = service_all[service_name]["cost_output"]
-        cost_input = service_all[service_name]["cost_input"]
-        cost_fixed = service_all[service_name]["cost_fixed"]
-        fixed_size = service_all[service_name]["fixed_size"]
-        
+        service_all = self.load_service_info()
+        # print("Debug:", service_all)
+        # print("Debug:", getservicename())
+
+        provider, model = service_name.split('/')
+
+        cost_output = service_all[provider][model]["cost_output"]
+        cost_input = service_all[provider][model]["cost_input"]
+        cost_fixed = service_all[provider][model]["cost_fixed"]
+        fixed_size = service_all[provider][model]["fixed_size"]
+        # print("Debug: now the provider and model are", provider, model)
+        # print("Debug:", cost_output, cost_input, cost_fixed, fixed_size)
+
         cost = cost_input*input_size + cost_fixed
         if(gen_size>fixed_size):
             cost += cost_output*(gen_size - fixed_size)    
