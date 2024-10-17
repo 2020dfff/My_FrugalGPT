@@ -167,7 +167,7 @@ class LLMCascade(object):
             # print("now service_name",service_name)
             # print("query",query)
             # print("res",res)
-            t1 = query[0] + " " + res
+            t1 = query[0] + " " + str(res)
             t2 = t1.removeprefix(prefix)
             score = self.MyScores[service_name].get_score(scorer_text(t2))
             # print("score and score thres:",score,score_thres)
@@ -184,6 +184,7 @@ class LLMCascade(object):
         for query in tqdm(queries, desc="Collecting results"):
             ans1 = self.get_completion(query, genparams=genparams)
             cost = self.get_cost()
+            # print("cost",cost)
             result.append({'_id': query[2], 'answer': ans1, 'ref_answer': query[1], 'cost': cost})
         result = pandas.DataFrame(result)
         return result
