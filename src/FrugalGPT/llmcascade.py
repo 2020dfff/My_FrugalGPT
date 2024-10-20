@@ -8,6 +8,41 @@ from .llmchain import LLMChain
 import json, os
 import random
 from tqdm.notebook import tqdm
+import tiktoken
+
+MODEL_PRICE = {
+    'gpt-4o-mini':   [0.15, 0.6, 0],
+    'gpt-4-turbo':   [10, 30, 0],
+    'gpt-4o':        [5, 15, 0],
+    'gemini-1.5-flash-002':  [0.075, 0.3, 0],
+    'gemini-1.5-pro-002':    [3.5, 10.5, 0],
+    'gemini-1.0-pro':    [0.5, 1.5, 0],
+    'Phi-3-mini-4k-instruct':     [0.13, 0.52, 0],
+    'Phi-3.5-mini-instruct':   [0.13, 0.52, 0],
+    'Phi-3-small-8k-instruct':    [0.15, 0.6, 0],
+    'Phi-3-medium-4k-instruct':  [0.17, 0.68, 0],
+    'llama-3-8B':     [0.055, 0.055, 0],
+    'llama-3-70B':    [0.35, 0.4, 0],
+    'mixtral-8x7B':  [0.24, 0.24, 0]
+    }
+
+def price_of(q, model):
+    encoding = tiktoken.get_encoding('cl100k_base')
+    in_token_num = len(encoding.encode(q))
+    # for classification tasks, we assume the model always give out answer with len=1
+    out_token_num = 1
+    in_price = MODEL_PRICE[model][0] * in_token_num / 1e6
+    out_price = MODEL_PRICE[model][1] * out_token_num / 1e6
+    request_price = MODEL_PRICE[model][2]
+    return in_price + out_price + request_price
+
+def price_all(q, models):
+    costs = []
+    for m in models:
+        costs.append(price_of(q, m))
+    return costs
+
+
 
 def scorer_text(text):
     #return text
@@ -151,7 +186,7 @@ class LLMCascade(object):
     #     result = pandas.DataFrame(result)
     #     return result
     
-    def get_completion(self, query, genparams):
+    def get_completion(self, query, genparams, budget):
         LLMChain = self.LLMChain
         MyLLMEngine = self.MyLLMEngine
         cost = 0 
@@ -163,7 +198,10 @@ class LLMCascade(object):
                 break
             # answer get from data
             res = query[3][service_name.split("/")[1]]
-            cost += MyLLMEngine.get_cost()
+            # cost += MyLLMEngine.get_cost()
+            if cost < budget:
+                cost += price_of(query[0], service_name.split("/")[1])
+
             # print("now service_name",service_name)
             # print("query",query)
             # print("res",res)
@@ -176,16 +214,23 @@ class LLMCascade(object):
             if score > 1 - score_thres:
                 # print("stop at",service_name)
                 break
+            if cost > budget:
+                # print("Stop at", service_name)
+                break
         self.cost = cost
         return res
 
-    def get_completion_batch(self, queries, genparams):
+    def get_completion_batch(self, queries, genparams, budget):
         result = list()
+        overall_cost = 0
         for query in tqdm(queries, desc="Collecting results"):
-            ans1 = self.get_completion(query, genparams=genparams)
+            ans1 = self.get_completion(query, genparams=genparams, budget=budget)
             cost = self.get_cost()
             # print("cost",cost)
+            overall_cost += cost
             result.append({'_id': query[2], 'answer': ans1, 'ref_answer': query[1], 'cost': cost})
+        average_cost = overall_cost / len(queries)
+        print("average cost", average_cost)
         result = pandas.DataFrame(result)
         return result
         
