@@ -7,6 +7,8 @@ Created on Sat Apr  8 15:10:54 2023
 import os, copy, numpy, itertools, logging, json
 from . import optimizer
 import service.utils as utils
+from tqdm import tqdm
+import itertools
 
 class Strategy(object):
     def __init__(self,metric=""):
@@ -98,13 +100,13 @@ class LLMChain(Strategy):
                  metric="em_mc",
                  L_max=2,
                  strategy_path="strategy/temp2.json",):
-        self.metric=metric    
-        self.model_ids=["CHATGPT","GPT-4"]
+        self.metric = metric    
+        self.model_ids = ["CHATGPT", "GPT-4"]
         self.thres = [-1]
         self.strategy_path = strategy_path
         self.L_max = L_max
         
-    def train(self,responses:dict,labels:dict,score:dict):
+    def train(self, responses: dict, labels: dict, score: dict):
         # load strategy
         '''
         if(self.loadstrategy()):
@@ -117,11 +119,12 @@ class LLMChain(Strategy):
         L_max = self.L_max
         service_ids = responses.keys()
         results = []
-        for ell in range(L_max,L_max+1):
+        for ell in tqdm(range(L_max, L_max + 1), desc="Training LLM Chains"):
             # fix the choice of all apis in the chain
             selected_ids = list(itertools.permutations(service_ids, ell))
             # get results
-            results += [ self._find_param(responses,labels,selected_id,score) for selected_id in selected_ids]
+            for selected_id in tqdm(selected_ids, desc=f"Processing length {ell}", leave=False):
+                results.append(self._find_param(responses, labels, selected_id, score))
 
         # 2. Pick the one with the best results
         acc = -1
@@ -129,7 +132,7 @@ class LLMChain(Strategy):
         thres = []
         quantile = []		
         for result in results:
-            if(result['acc']>acc):
+            if result['acc'] > acc:
                 acc = result['acc']
                 model_ids = result['model_ids']
                 thres = result['thres']
@@ -146,56 +149,56 @@ class LLMChain(Strategy):
                     responses,
                     labels,
                     selected_id,
-					scores):
+                    scores):
         # construct data
         L_mat, C_mat, d_mat = optimizer.construct_data(responses,
                                                        labels,
                                                        selected_id,
                                                        metric=self.metric,
-													   scores=scores,
+                                                       scores=scores,
                                                        )
         # optimze results
-        obj, var, qual = optimizer.optimize(L_mat,C_mat,d_mat,budget=self.budget)
-        result = {"acc":obj,"model_ids":selected_id,"thres":var,"quantile":qual}
+        obj, var, qual = optimizer.optimize(L_mat, C_mat, d_mat, budget=self.budget)
+        result = {"acc": obj, "model_ids": selected_id, "thres": var, "quantile": qual}
         return result
     
-    def predict(self, responses:dict,scores:dict):
+    def predict(self, responses: dict, scores: dict):
         base_id = self.model_ids[0]
         result = copy.deepcopy(responses[base_id])
         result['query_apis'] = dict()
         
-        dist_full = [optimizer.compute_distance_batch(responses,self.model_ids[0:i+1],scores=scores) for i in range(len(self.model_ids))]
+        dist_full = [optimizer.compute_distance_batch(responses, self.model_ids[0:i+1], scores=scores) for i in range(len(self.model_ids))]
         i = 0
         for key in responses[base_id]['answer']:
             data1 = [responses[m_id]['answer'][key] for m_id in self.model_ids]
             cost1 = [responses[m_id]['cost'][key] for m_id in self.model_ids]
             dist_1 = [dist_full[j][i] for j in range(len(self.model_ids))]
-            i+=1
-            answer, cost, apis = self.predict_one(data1, cost1,dist_1)
+            i += 1
+            answer, cost, apis = self.predict_one(data1, cost1, dist_1)
             result['answer'][key] = answer
             result['cost'][key] = cost
             result['query_apis'][key] = apis
         return result
     
-    def predict_one(self, data1, cost1,dist_1):
+    def predict_one(self, data1, cost1, dist_1):
         #full_cost = cost1[0]
         #apis=[self.model_ids[0]]
         apis = []
-        full_cost= 0
-        for i in range(0,len(self.model_ids)-1):
+        full_cost = 0
+        for i in range(0, len(self.model_ids) - 1):
             #dist = optimizer.compute_dist(data1[0:i+1])
             dist = dist_1[i]
             full_cost += cost1[i]
             apis.append(self.model_ids[i])
-            if(dist<self.thres[i]):
+            if dist < self.thres[i]:
                 return data1[i], full_cost, apis
         full_cost += cost1[-1]
         apis.append(self.model_ids[-1])
         return data1[-1], full_cost, apis
     
-    
     def show(self):
         print("chain models", self.model_ids)
+    
     def getAPInames(self):
         return self.model_ids
 
@@ -203,9 +206,9 @@ class LLMChain(Strategy):
         self.APIptr = 0
 
     def nextAPIandScore(self,):
-        if (self.APIptr>=len(self.model_ids)):
+        if self.APIptr >= len(self.model_ids):
             return None, None
         name = self.model_ids[self.APIptr]
         scorethres = self.thres[self.APIptr]
-        self.APIptr+=1
+        self.APIptr += 1
         return name, scorethres

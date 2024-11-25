@@ -6,7 +6,7 @@ import cohere
 import json
 from .utils import compute_cost # .utils
 import os
-import anthropic
+# import anthropic
 #from transformers import CodeGenTokenizerFast
 #tokenizer_FFAI = CodeGenTokenizerFast.from_pretrained("Salesforce/codegen-350M-mono")
 from transformers import GPT2Tokenizer
@@ -53,7 +53,7 @@ class ModelService:
 
 class APIModelProvider(ModelService):
     """Provider that calculates conditional logprobs through a REST API"""
-    _CONFIG = json.load(open("config/serviceinfo.json"))
+    _CONFIG = json.load(open("config/serviceinfo_thrift.json"))
     def getcompletion(self,
                       context,
                       use_save=False,
@@ -172,7 +172,7 @@ class OpenAIModelProvider(APIModelProvider):
     def __init__(self, model):
         self._model = model
         self.temp_cmp = {'raw':{'usage':{'prompt_tokens':0}}}
-        assert self._API_KEY is not None, "Please set OPENAI_API_KEY env var for running through OpenAI"
+        # assert self._API_KEY is not None, "Please set OPENAI_API_KEY env var for running through OpenAI"
 
     def _request_format(self,
                         context,
@@ -278,7 +278,7 @@ class OpenAIChatModelProvider(APIModelProvider):
     
     def __init__(self, model):
         self._model = model
-        assert self._API_KEY is not None, "Please set OPENAI_API_KEY env var for running through OpenAI"
+        # assert self._API_KEY is not None, "Please set OPENAI_API_KEY env var for running through OpenAI"
 
     def _request_format(self,
                         context,
@@ -323,7 +323,7 @@ class AI21ModelProvider(APIModelProvider):
     _NAME = "ai21"
     def __init__(self, model):
         self._model = model
-        assert self._API_KEY is not None, "Please set AI21_STUDIO_API_KEY env var for running through AI21 Studio"
+        # assert self._API_KEY is not None, "Please set AI21_STUDIO_API_KEY env var for running through AI21 Studio"
 
     def _request_format(self,
                         context,
@@ -356,7 +356,7 @@ class CohereAIModelProvider(APIModelProvider):
 
     def __init__(self, model):
         self._model = model
-        assert self._API_KEY is not None, "Please set COHERE_STUDIO_API_KEY env var for running through AI21 Studio"
+        # assert self._API_KEY is not None, "Please set COHERE_STUDIO_API_KEY env var for running through AI21 Studio"
     def _api_call(self, endpoint, data, api_key, retries=10, retry_grace_time=10):
         
         co = cohere.Client(api_key)
@@ -440,7 +440,7 @@ class ForeFrontAIModelProvider(APIModelProvider):
                      }
     def __init__(self, model="QA"):
         self._model = model
-        assert self._API_KEY is not None, "Please set FOREFRONT_API_KEY env var for running through Forefront"  
+        # assert self._API_KEY is not None, "Please set FOREFRONT_API_KEY env var for running through Forefront"  
     
     def _request_format(self,
                         context,
@@ -490,7 +490,7 @@ class TextSynthModelProvider(APIModelProvider):
 
     def __init__(self, model="QA"):
         self._model = model
-        assert self._API_KEY is not None, "Please set FOREFRONT_API_KEY env var for running through Forefront"
+        # assert self._API_KEY is not None, "Please set FOREFRONT_API_KEY env var for running through Forefront"
 		
     def _request_format(self,
                         context,
@@ -523,7 +523,7 @@ class AnthropicModelProvider(APIModelProvider):
     
     def __init__(self, model):
         self._model = model
-        assert self._API_KEY is not None, "Please set ANTHROPIC_API_KEY env var for running through OpenAI"
+        # assert self._API_KEY is not None, "Please set ANTHROPIC_API_KEY env var for running through OpenAI"
         # self.client = anthropic.Client(os.environ['ANTHROPIC_API_KEY'])
         self.client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
@@ -575,7 +575,7 @@ class TogetherAIModelProvider(APIModelProvider):
     
     def __init__(self, model):
         self._model = model
-        assert self._API_KEY is not None, "Please set TOGETHER_API_KEY env var for running through Together AI"
+        # assert self._API_KEY is not None, "Please set TOGETHER_API_KEY env var for running through Together AI"
     
     def _request_format(self, context, genparams):
         req = {
@@ -609,7 +609,7 @@ class AzureModelProvider(APIModelProvider):
     _NAME = "azure"
     def __init__(self, model):
         self._model = model
-        assert self._API_KEY is not None, "Please set AI21_STUDIO_API_KEY env var for running through AI21 Studio"
+        # assert self._API_KEY is not None, "Please set AI21_STUDIO_API_KEY env var for running through AI21 Studio"
 
 class DeepInfraModelProvider(APIModelProvider):
     # _ENDPOINT = os.environ.get("DEEPINFRA_ENDPOINT", "https://api.deepinfra.com/v1/engines/{engine}/completions")
@@ -617,7 +617,7 @@ class DeepInfraModelProvider(APIModelProvider):
     _NAME = "deepinfra"
     def __init__(self, model):
         self._model = model
-        assert self._API_KEY is not None, "Please set DEEPINFRA_API_KEY env var for running through DeepInfra"
+        # assert self._API_KEY is not None, "Please set DEEPINFRA_API_KEY env var for running through DeepInfra"
 
 _PROVIDER_MAP = {
     # "openai": OpenAIModelProvider, # cleaned

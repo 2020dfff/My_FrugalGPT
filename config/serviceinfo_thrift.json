@@ -3,25 +3,25 @@
     {   
         "gemini-1.5-flash-002":
         {
-            "cost_input":0.00002,
-            "cost_output":0.00002,
-            "cost_fixed":0.0005,
+            "cost_input":0.000000075,
+            "cost_output":0.0000003,
+            "cost_fixed":0,
             "fixed_size":0
         },
         
         "gemini-1.5-pro-002":
         {
-            "cost_input":0.000025,
-            "cost_output":0.000025,
-            "cost_fixed":0.0006,
+            "cost_input":0.0000035,
+            "cost_output":0.0000105,
+            "cost_fixed":0,
             "fixed_size":0
         },
         
         "gemini-1.0-pro":
         {
-            "cost_input":0.000018,
-            "cost_output":0.000018,
-            "cost_fixed":0.0004,
+            "cost_input":0.0000005,
+            "cost_output":0.0000015,
+            "cost_fixed":0,
             "fixed_size":0
         }                    
     },
