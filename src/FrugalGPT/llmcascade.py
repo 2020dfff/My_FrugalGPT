@@ -42,8 +42,6 @@ def price_all(q, models):
         costs.append(price_of(q, m))
     return costs
 
-
-
 def scorer_text(text):
     #return text
 
@@ -199,8 +197,8 @@ class LLMCascade(object):
             # answer get from data
             res = query[3][service_name.split("/")[1]]
             # cost += MyLLMEngine.get_cost()
-            if cost < budget:
-                cost += price_of(query[0], service_name.split("/")[1])
+            # if cost < budget:
+            cost += price_of(query[0], service_name.split("/")[1])
 
             # print("now service_name",service_name)
             # print("query",query)
@@ -214,16 +212,27 @@ class LLMCascade(object):
             if score > 1 - score_thres:
                 # print("stop at",service_name)
                 break
-            if cost > budget:
+            # if cost > budget:
                 # print("Stop at", service_name)
-                break
+                # return res
+                # break
         self.cost = cost
         return res
 
+    # def get_completion_batch(self, queries, genparams):
+    #     result = list()
+    #     for query in queries:
+    #         ans1 = self.get_completion(query=query[0], genparams=genparams)
+    #         cost = self.get_cost()
+    #         result.append({'_id': query[2], 'answer': ans1, 'ref_answer': query[1], 'cost': cost})
+    #     result = pandas.DataFrame(result)
+    #     return result
+    
     def get_completion_batch(self, queries, genparams, budget):
         result = list()
         overall_cost = 0
-        for query in tqdm(queries, desc="Collecting results"):
+        # for query in tqdm(queries, desc="Collecting results"):
+        for query in queries:
             ans1 = self.get_completion(query, genparams=genparams, budget=budget)
             cost = self.get_cost()
             # print("cost",cost)

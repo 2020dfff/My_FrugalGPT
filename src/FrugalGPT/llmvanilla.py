@@ -85,8 +85,6 @@ class LLMVanilla(object):
         cost = cost_input*input_size + cost_fixed
         if(gen_size>fixed_size):
             cost += cost_output*(gen_size - fixed_size)    
-
-        # print("Debug: cost is", cost)
         
         return cost 
 
