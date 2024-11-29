@@ -231,15 +231,19 @@ class LLMCascade(object):
     def get_completion_batch(self, queries, genparams, budget):
         result = list()
         overall_cost = 0
+        # max_cost = 0
         # for query in tqdm(queries, desc="Collecting results"):
         for query in queries:
             ans1 = self.get_completion(query, genparams=genparams, budget=budget)
             cost = self.get_cost()
             # print("cost",cost)
             overall_cost += cost
+            # if cost > max_cost:
+            #     max_cost = cost
             result.append({'_id': query[2], 'answer': ans1, 'ref_answer': query[1], 'cost': cost})
         average_cost = overall_cost / len(queries)
         print("average cost", average_cost)
+        # print("max cost", max_cost)
         result = pandas.DataFrame(result)
         return result
         

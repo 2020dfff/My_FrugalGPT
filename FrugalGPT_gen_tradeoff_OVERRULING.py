@@ -14,6 +14,7 @@ print("supported_LLM_names:", supported_LLM_names)
 
 # ## Step 1: Prepare the dataset
 
+# change the dataset name to the one you want to use
 dataname = "OVERRULING"
 
 # read from data/{dataname}/Queried_{dataname}_all_models_clean_train.csv and data/{dataname}/Queried_{dataname}_all_models_clean_test.csv
@@ -171,7 +172,9 @@ def generate_dataframe_from_cascade(MyCascade,budget_list, train_data, test_data
         test_result = MyCascade.get_completion_batch(queries=test_data, genparams=genparams, budget=budget)
         # print("cost", test_result['cost'])
         average_test_cost = test_result['cost'].mean()
+        # max_cost_per_test_query = test_result['cost'].max()
         average_train_cost = train_result['cost'].mean()
+        # max_cost_per_train_query = train_result['cost'].max()
 
         train_acc_cost = FrugalGPT.compute_score(train_result)
         test_acc_cost = FrugalGPT.compute_score(test_result)
@@ -180,9 +183,11 @@ def generate_dataframe_from_cascade(MyCascade,budget_list, train_data, test_data
         row = {
             "Test_acc": test_acc_cost['em'],
             "Test_cost": average_test_cost, # test_result['cost']
+            # "Max_test_cost": max_cost_per_test_query,
             "Test_size": len(test_data),
             "Train_acc": train_acc_cost['em'],
             "Train_cost": average_train_cost, # train_acc_cost['cost'],
+            # "Max_train_cost": max_cost_per_train_query,
             "Train_size": len(train_data),
             "Budget": budget,
             "Method": "FrugalGPT",
