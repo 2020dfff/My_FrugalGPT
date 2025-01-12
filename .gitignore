@@ -8,3 +8,8 @@ logs/
 results/
 ml/
 *.zip
+*.ipynb_checkpoints
+mlruns/
+pane_output.txt
+temp/
+summary/

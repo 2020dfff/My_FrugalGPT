@@ -14,7 +14,7 @@ print("supported_LLM_names:", supported_LLM_names)
 
 # ## Step 1: Prepare the dataset
 
-dataname = "HEADLINES"
+dataname = "HELLASWAG"
 
 # read from data/{dataname}/Queried_{dataname}_all_models_clean_train.csv and data/{dataname}/Queried_{dataname}_all_models_clean_test.csv
 dataset_df = pd.read_csv(f'data/{dataname}/Queried_{dataname}_all_models_clean_train.csv', header=0)

@@ -14,7 +14,7 @@ print("supported_LLM_names:", supported_LLM_names)
 
 # ## Step 1: Prepare the dataset
 
-dataname = "HEADLINES"
+dataname = "SCIQ"
 
 # read from data/{dataname}/Queried_{dataname}_all_models_clean_train.csv and data/{dataname}/Queried_{dataname}_all_models_clean_test.csv
 dataset_df = pd.read_csv(f'data/{dataname}/Queried_{dataname}_all_models_clean_train.csv', header=0)
@@ -110,7 +110,7 @@ def compute_tradeoffs(
     return
 
 name = f'{dataname}_1125'
-budget_list = [0.00001, 0.00005, 0.0001, 0.0005, 0.001] #  , 0.0015
+budget_list = [0.00005, 0.0001, 0.0005, 0.001] #  , 0.0015 , 0.00001,
 
 MyCascade = FrugalGPT.LLMCascade(
     score_noise_injection=False,

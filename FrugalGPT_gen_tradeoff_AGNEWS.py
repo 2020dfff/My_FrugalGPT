@@ -1,14 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# # 🎓 FrugalGPT: Performance and Cost Tradeoffs
-# 
-# This script illustrates the FrugalGPT framework for _building LLM Applications with budget constraints._
-# 
-# In particular, we will focus on evaluating the performance and cost tradeoffs enabled by FrugalGPT.
-# 
-# NB: You are highly suggested to use accelerated hardware (GPU/TPU) to run this script.
-
 import sys, json, copy
 import pandas as pd
 import logging
@@ -17,24 +6,11 @@ from tqdm import tqdm
 logging.disable(logging.CRITICAL)
 sys.path.append("src/")
 import FrugalGPT
-import argparse
-import torch
-
-parser = argparse.ArgumentParser(description="Run FrugalGPT with specified device")
-parser.add_argument('--device', type=int, default=0, help='CUDA device number (default: 0)')
-args = parser.parse_args()
-device = torch.device(f"cuda:{args.device}" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}")
-
-logging.disable(logging.CRITICAL)
-sys.path.append("src/")
 
 supported_LLM = FrugalGPT.getservicename()
 print("supported LLMs:", supported_LLM)
 supported_LLM_names = [llm.split("/")[1] for llm in supported_LLM]
 print("supported_LLM_names:", supported_LLM_names)
-
-# ## Generating the tradeoffs involves three major steps: (i) prepare the dataset, (ii) train the FrugalGPT strategy, and (iii) evaluate and save the performance.
 
 # ## Step 1: Prepare the dataset
 
@@ -133,8 +109,8 @@ def compute_tradeoffs(
         MyCascade.save(savepath=f"strategy/{name}/")
     return
 
-name = f'{dataname}_1015'
-budget_list = [0.00001, 0.00005, 0.0001, 0.0005, 0.001] # , 0.0015
+name = f'{dataname}_1125'
+budget_list = [0.00001, 0.00005, 0.0001, 0.0005, 0.001] #  , 0.0015
 
 MyCascade = FrugalGPT.LLMCascade(
     score_noise_injection=False,
@@ -179,7 +155,7 @@ print(test_data[3][3]['llama-3-8B'])
 
 print(len(test_data))
 
-def generate_dataframe_from_cascade(MyCascade, budget_list, train_data, test_data, genparams, name):
+def generate_dataframe_from_cascade(MyCascade,budget_list, train_data, test_data, genparams,name):
     # Initialize an empty list to store the rows for the DataFrame
     data = []
 
@@ -187,29 +163,26 @@ def generate_dataframe_from_cascade(MyCascade, budget_list, train_data, test_dat
     for budget in tqdm(budget_list):
         # Load the strategy for the given budget
         MyCascade.load(loadpath=f"strategy/{name}/", budget=budget)
-        print("loaded from path:", f"strategy/{name}/")
-        print("now the budget is:", budget)
-
-        # Get the completion batch for train data
-        print("start train data")
-        train_result = MyCascade.get_completion_batch(queries=train_data, genparams=genparams)
-        print("train_result:", train_result)
-        # Compute the ACC and cost for train data
-        train_acc_cost = FrugalGPT.compute_score(train_result)
+        # print("loaded from path:",f"strategy/{name}/")
+        # print("now the budget is:",budget)
 
         # Get the completion batch for test data
-        test_result = MyCascade.get_completion_batch(queries=test_data, genparams=genparams)
+        train_result = MyCascade.get_completion_batch(queries=train_data, genparams=genparams, budget=budget)
+        test_result = MyCascade.get_completion_batch(queries=test_data, genparams=genparams, budget=budget)
+        # print("cost", test_result['cost'])
+        average_test_cost = test_result['cost'].mean()
+        average_train_cost = train_result['cost'].mean()
 
-        # Compute the ACC and cost for test data
+        train_acc_cost = FrugalGPT.compute_score(train_result)
         test_acc_cost = FrugalGPT.compute_score(test_result)
 
         # Create a row with the schema
         row = {
             "Test_acc": test_acc_cost['em'],
-            "Test_cost": test_acc_cost['cost'],
+            "Test_cost": average_test_cost, # test_result['cost']
             "Test_size": len(test_data),
             "Train_acc": train_acc_cost['em'],
-            "Train_cost": train_acc_cost['cost'],
+            "Train_cost": average_train_cost, # train_acc_cost['cost'],
             "Train_size": len(train_data),
             "Budget": budget,
             "Method": "FrugalGPT",
@@ -219,11 +192,10 @@ def generate_dataframe_from_cascade(MyCascade, budget_list, train_data, test_dat
 
         # Append the row to the data list
         data.append(row)
-        print(row)
+        # print(row)
 
     # Create the DataFrame from the data list
     df = pd.DataFrame(data)
-
     return df
 
 MyCascade_eval = FrugalGPT.LLMCascade()

@@ -137,12 +137,13 @@ def normalize_answer(s,normal_method=""):
         return text.lower()
 
     def mc_remove(text):
-        a1 = re.findall('\([a-zA-Z]\)', text)
-        #print("text is",text)
-        #print("a1",a1)
-        if(len(a1)==0):
-            return ""
-        return re.findall('\([a-zA-Z]\)', text)[-1]
+        return text
+        # a1 = re.findall('\([a-zA-Z]\)', text)
+        # #print("text is",text)
+        # #print("a1",a1)
+        # if(len(a1)==0):
+        #     return ""
+        # return re.findall('\([a-zA-Z]\)', text)[-1]
     if(normal_method=="mc"):
         return mc_remove(s)
     if not isinstance(s, str):
