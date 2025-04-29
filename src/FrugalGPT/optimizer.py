@@ -59,6 +59,10 @@ def construct_data(responses,
 
 def optimize(L_mat,C_mat,d_mat,budget):
     #return 0.1, [0,1,1,1]
+    # print("budget is",budget)
+    # with open('file.txt', 'w') as f:
+        # f.write("C_mat is {}\n".format(C_mat))
+    # print("the size of C_mat is",C_mat.shape)
     if(numpy.average(C_mat[:,0])>budget):
         logging.critical("Base API too expensive, skip")
         return -999, [], []
