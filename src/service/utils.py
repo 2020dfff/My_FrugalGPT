@@ -115,10 +115,20 @@ def evaluate_batch(answers, labels):
     metrics['avg_cost'] = sum(costs)/len(costs)
     return metrics
 
-def evaluate(prediction, ground_truth,metric="em"):
-    if (metric == "em"):
-        return int(exact_match_score(prediction, ground_truth, normal_method=""))
+# def evaluate(prediction, ground_truth,metric="em"):
+#     if (metric == "em"):
+#         return int(exact_match_score(prediction, ground_truth, normal_method=""))
 
+def evaluate(prediction, ground_truth, metric="em"):
+    if metric == "em":
+        return int(exact_match_score(prediction, ground_truth, normal_method=""))
+    elif metric == "f1":
+        _, _, _, tp, fp, tn, fn = f1_score_binary(prediction, ground_truth)
+        # if fp != 0 or fn != 0:
+        #     print(f"TP: {tp}, FP: {fp}, TN: {tn}, FN: {fn}")
+        return tp, fp, tn, fn
+    else:
+        raise ValueError(f"Unsupported metric: {metric}")
 
 def normalize_answer(s,normal_method=""):
 
@@ -137,12 +147,13 @@ def normalize_answer(s,normal_method=""):
         return text.lower()
 
     def mc_remove(text):
-        a1 = re.findall('\([a-zA-Z]\)', text)
-        #print("text is",text)
-        #print("a1",a1)
-        if(len(a1)==0):
-            return ""
-        return re.findall('\([a-zA-Z]\)', text)[-1]
+        return text
+        # a1 = re.findall('\([a-zA-Z]\)', text)
+        # #print("text is",text)
+        # #print("a1",a1)
+        # if(len(a1)==0):
+        #     return ""
+        # return re.findall('\([a-zA-Z]\)', text)[-1]
     if(normal_method=="mc"):
         return mc_remove(s)
     if not isinstance(s, str):
@@ -171,6 +182,44 @@ def f1_score(prediction, ground_truth):
     recall = 1.0 * num_same / len(ground_truth_tokens)
     f1 = (2 * precision * recall) / (precision + recall)
     return f1, precision, recall
+
+def f1_score_binary(prediction, ground_truth):
+    """
+    Calculate F1-score for binary classification tasks (yes/no).
+    """
+    # Ensure inputs are normalized
+    normalized_prediction = normalize_answer(prediction)
+    normalized_ground_truth = normalize_answer(ground_truth)
+
+    # Initialize counts
+    tp = 0  # True Positive
+    fp = 0  # False Positive
+    tn = 0  # True Negative
+    fn = 0  # False Negative
+
+    # Update counts based on prediction and ground truth
+    if normalized_prediction == 'yes' and normalized_ground_truth == 'yes':
+        tp += 1
+    elif normalized_prediction == 'yes' and normalized_ground_truth == 'no':
+        fp += 1
+    elif normalized_prediction == 'no' and normalized_ground_truth == 'no':
+        tn += 1
+    elif normalized_prediction == 'no' and normalized_ground_truth == 'yes':
+        fn += 1
+    else:
+        # Handle invalid predictions (not 'yes' or 'no')
+        if normalized_ground_truth == 'yes':
+            fn += 1  # Treat as a False Negative
+        elif normalized_ground_truth == 'no':
+            fp += 1  # Treat as a False Positive
+
+
+    # Calculate Precision, Recall, and F1-score
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+    f1 = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+
+    return f1, precision, recall, tp, fp, tn, fn
 
 
 def exact_match_score(prediction, ground_truth, normal_method=""):

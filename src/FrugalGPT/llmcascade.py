@@ -239,7 +239,7 @@ class LLMCascade(object):
             # print("cost",cost)
             overall_cost += cost
             # if cost > max_cost:
-            #     max_cost = cost
+                # max_cost = cost
             result.append({'_id': query[2], 'answer': ans1, 'ref_answer': query[1], 'cost': cost})
         average_cost = overall_cost / len(queries)
         print("average cost", average_cost)
@@ -247,6 +247,106 @@ class LLMCascade(object):
         result = pandas.DataFrame(result)
         return result
         
+    def get_completion_test(self, query, genparams, budget, metric="em"):
+        LLMChain = self.LLMChain
+        MyLLMEngine = self.MyLLMEngine
+        cost = 0 
+        LLMChain.reset()
+        prefix = self.prefix
+        is_correct = False
+        res = None
+        last_res = None
+        last_cost = 0
+
+        # initialize the variables
+        tp, fp, tn, fn = 0, 0, 0, 0
+
+        while(1):
+            service_name, score_thres = LLMChain.nextAPIandScore()
+            if service_name is None:
+                break
+            # answer get from data
+            res = query[3][service_name.split("/")[1]]
+            new_cost = cost + price_of(query[0], service_name.split("/")[1])
+            if new_cost > budget:
+                print("Budget exceeded, stop at", service_name)
+                if metric == "f1":
+                    tp, fp, tn, fn = evaluate(prediction=last_res, ground_truth=query[1], metric="f1")
+                elif metric == "em":
+                    is_correct = evaluate(prediction=last_res, ground_truth=query[1], metric="em")
+                res = last_res
+                cost = last_cost
+                break
+            cost = new_cost
+            last_res = res
+            last_cost = cost
+            t1 = query[0] + " " + str(res)
+            t2 = t1.removeprefix(prefix)
+            score = self.MyScores[service_name].get_score(scorer_text(t2))
+            if self.score_noise_injection:
+                score += random.random() * self.eps
+            if score > 1 - score_thres:
+                # Evaluate the result
+                if metric == "f1":
+                    tp, fp, tn, fn = evaluate(prediction=res, ground_truth=query[1], metric="f1")
+                elif metric == "em":
+                    is_correct = evaluate(prediction=res, ground_truth=query[1], metric="em")
+                    # print("evaluation result", is_correct)
+                break
+        self.cost = cost
+        return res, is_correct, tp, fp, tn, fn
+        
+    def get_completion_batch_test(self, queries, genparams, budget, metric="em"):
+        result = list()
+        overall_cost = 0
+        total_tp = 0
+        total_fp = 0
+        total_tn = 0
+        total_fn = 0
+        total_correct_count = 0
+        total_wrong_count = 0
+
+        for query in queries:
+            ans1, is_correct, tp, fp, tn, fn = self.get_completion_test(query, genparams=genparams, budget=budget, metric=metric)
+            cost = self.get_cost()
+            overall_cost += cost
+
+            # print("cost",cost)
+
+            if metric == "f1":
+                total_tp += tp
+                total_fp += fp
+                total_fn += fn
+                total_tn += tn
+                
+            elif metric == "em":
+                if is_correct:
+                    total_correct_count += 1
+                else:
+                    total_wrong_count += 1
+
+            result.append({'_id': query[2], 'answer': ans1, 'ref_answer': query[1], 'cost': cost})        
+        # print("average cost", average_cost)
+        # print("max cost", max_cost)
+
+        if metric == "f1":
+            print("Total TP:", total_tp, "Total FP:", total_fp, "Total TN:", total_tn, "Total FN:", total_fn)
+        elif metric == "em":
+            print("Total Correct Count:", total_correct_count, "Total Wrong Count:", total_wrong_count)
+
+        precision = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0
+        recall = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0
+        f1_score = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+
+        result = pandas.DataFrame(result)
+        average_cost = result['cost'].mean()
+        if metric == "f1":
+            return result, average_cost, f1_score
+        elif metric == "em":
+            accuracy = total_correct_count / len(queries)
+            return result, average_cost, accuracy
+
+
     def get_cost(self):
         return self.cost
 
