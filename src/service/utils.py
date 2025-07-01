@@ -109,10 +109,42 @@ def evaluate_batch(answers, labels):
     os.remove(true_path)
     os.remove(pred_path)
 	
-    costs  = [answers['cost'][key] for key in answers['cost']]            
+    costs = [answers['cost'][key] for key in answers['cost']]            
     metrics['cost_list'] = costs
     metrics['cost'] = sum(costs)
     metrics['avg_cost'] = sum(costs)/len(costs)
+    
+    # 确保metrics中包含f1_list, precision_list和recall_list
+    if 'f1' in metrics and 'f1_list' not in metrics:
+        # 如果有f1但没有f1_list，则计算它们
+        all_keys = list(answers['answer'].keys())
+        f1_list = []
+        precision_list = []
+        recall_list = []
+        
+        for key in all_keys:
+            pred = answers['answer'][key]
+            # 找到对应的label
+            label = None
+            for lb in labels:
+                if str(lb['_id']) == str(key):
+                    label = lb['answer']
+                    break
+                    
+            if label is not None:
+                f1, precision, recall, _, _, _, _ = f1_score_binary(pred, label)
+                f1_list.append(f1)
+                precision_list.append(precision)
+                recall_list.append(recall)
+            else:
+                f1_list.append(0)
+                precision_list.append(0)
+                recall_list.append(0)
+        
+        metrics['f1_list'] = f1_list
+        metrics['precision_list'] = precision_list
+        metrics['recall_list'] = recall_list
+        
     return metrics
 
 # def evaluate(prediction, ground_truth,metric="em"):
@@ -123,9 +155,8 @@ def evaluate(prediction, ground_truth, metric="em"):
     if metric == "em":
         return int(exact_match_score(prediction, ground_truth, normal_method=""))
     elif metric == "f1":
-        _, _, _, tp, fp, tn, fn = f1_score_binary(prediction, ground_truth)
-        # if fp != 0 or fn != 0:
-        #     print(f"TP: {tp}, FP: {fp}, TN: {tn}, FN: {fn}")
+        f1, precision, recall, tp, fp, tn, fn = f1_score_binary(prediction, ground_truth)
+        # print(f"Debug - evaluate: pred={prediction}, ground={ground_truth}, tp={tp}, fp={fp}, tn={tn}, fn={fn}")
         return tp, fp, tn, fn
     else:
         raise ValueError(f"Unsupported metric: {metric}")
@@ -284,9 +315,16 @@ def eval(prediction_file, gold_file):
         'em_list':[],
         'em_mc':0,
         'em_mc_list':[],
+        'f1_list':[],  # 添加f1_list
+        'precision_list':[],  # 添加precision_list
+        'recall_list':[],  # 添加recall_list
         #'em_batch':0,
         #'em_batch_list':[],
         }
+    
+    # 添加F1相关统计
+    total_tp, total_fp, total_tn, total_fn = 0, 0, 0, 0
+    
     for dp in gold:
         cur_id = str(dp['_id'])
         # cur_id = dp['_id']
@@ -299,9 +337,40 @@ def eval(prediction_file, gold_file):
             # print("Debug: Now the prediction is",prediction)
             print('missing answer {}'.format(cur_id))
             can_eval_joint = False
+            metrics['em_list'].append(0)
+            metrics['f1_list'].append(0)
+            metrics['precision_list'].append(0)
+            metrics['recall_list'].append(0)
         else:
-            em, prec, recall = update_answer(
-                metrics, prediction['answer'][cur_id], dp['answer'])
+            # 计算EM和F1
+            pred = prediction['answer'][cur_id]
+            gt = dp['answer']
+            
+            # EM计算
+            em = exact_match_score(pred, gt)
+            metrics['em'] += float(em)
+            metrics['em_list'].append(float(em))
+            
+            # F1计算
+            f1, precision, recall, tp, fp, tn, fn = f1_score_binary(pred, gt)
+            metrics['f1'] += f1
+            metrics['prec'] += precision
+            metrics['recall'] += recall
+            metrics['f1_list'].append(f1)
+            metrics['precision_list'].append(precision)
+            metrics['recall_list'].append(recall)
+            
+            # 累积F1统计
+            total_tp += tp
+            total_fp += fp
+            total_tn += tn
+            total_fn += fn
+            
+            # EM-MC计算
+            em_mc = exact_match_score(pred, gt, normal_method="mc")
+            metrics['em_mc'] += float(em_mc)
+            metrics['em_mc_list'].append(float(em_mc))
+            
         if cur_id not in prediction['sp']:
             # print('missing sp fact {}'.format(cur_id))
             can_eval_joint = False
@@ -310,7 +379,7 @@ def eval(prediction_file, gold_file):
                 metrics, prediction['sp'][cur_id], dp['supporting_facts'])
 
         if can_eval_joint:
-            joint_prec = prec * sp_prec
+            joint_prec = precision * sp_prec
             joint_recall = recall * sp_recall
             if joint_prec + joint_recall > 0:
                 joint_f1 = 2 * joint_prec * joint_recall / (joint_prec + joint_recall)
@@ -325,8 +394,33 @@ def eval(prediction_file, gold_file):
 
     N = len(gold)
     for k in metrics.keys():
-        if(k !="em_list" and k!='em_mc_list'):
+        if k not in ["em_list", "em_mc_list", "f1_list", "precision_list", "recall_list"]:
             metrics[k] /= N
+    
+    # 计算整体F1分数
+    if total_tp + total_fp > 0:
+        overall_precision = total_tp / (total_tp + total_fp)
+    else:
+        overall_precision = 0
+    
+    if total_tp + total_fn > 0:
+        overall_recall = total_tp / (total_tp + total_fn)
+    else:
+        overall_recall = 0
+    
+    if overall_precision + overall_recall > 0:
+        overall_f1 = 2 * overall_precision * overall_recall / (overall_precision + overall_recall)
+    else:
+        overall_f1 = 0
+    
+    # 添加整体F1统计
+    metrics['overall_f1'] = overall_f1
+    metrics['overall_precision'] = overall_precision
+    metrics['overall_recall'] = overall_recall
+    metrics['tp'] = total_tp
+    metrics['fp'] = total_fp
+    metrics['tn'] = total_tn
+    metrics['fn'] = total_fn
 
    #print(metrics)
     return metrics

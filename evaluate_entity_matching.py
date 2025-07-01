@@ -18,6 +18,9 @@ parser.add_argument('--device', type=int, default=0, help='CUDA device number (d
 parser.add_argument('--configpath', type=str, required=True, help='Path to the service configuration file')
 parser.add_argument('--dataname', type=str, required=True, help='Dataset name (e.g., abt-buy, wdc, amazon-google, dblp-scholar, walmart-amazon)')
 parser.add_argument('--metric', type=str, default='f1', choices=['f1', 'em'], help='Evaluation metric (default: f1)')
+parser.add_argument('--date', type=str, default='0407', help='Date string for naming (format: MMDD, default: 0407)')
+parser.add_argument('--budgets', type=str, default='0.00001,0.00005,0.0001,0.0005,0.001', 
+                   help='Comma-separated list of budgets (default: "0.00001,0.00005,0.0001,0.0005,0.001")')
 args = parser.parse_args()
 
 # check device
@@ -85,8 +88,11 @@ print(test_data[3][3]['llama-3-8B'])
 print(len(test_data))
 
 # Experiment name and budget list
-name = f'{dataname}_0407'
-budget_list = [0.00001, 0.00005, 0.0001, 0.0005, 0.001]
+name = f'{dataname}_{args.date}'
+# Parse budget list from string
+budget_list = [float(budget.strip()) for budget in args.budgets.split(',')]
+print(f"Using name: {name}")
+print(f"Using budget list: {budget_list}")
 
 # Function to generate DataFrame from cascade
 def generate_dataframe_from_cascade(MyCascade, budget_list, train_data, test_data, genparams, name, metric):
@@ -109,15 +115,15 @@ def generate_dataframe_from_cascade(MyCascade, budget_list, train_data, test_dat
         average_train_cost = train_result['cost'].mean()
         max_cost_per_train_query = train_result['cost'].max()
 
-        train_acc_cost = FrugalGPT.compute_score(train_result)
-        test_acc_cost = FrugalGPT.compute_score(test_result)
+        train_metrics = FrugalGPT.compute_score(train_result, metric=metric)
+        test_metrics = FrugalGPT.compute_score(test_result, metric=metric)
 
         row = {
             "Test_F1-score" if metric == "f1" else "Test_Accuracy": metric_value,
             "Test_cost": average_cost,
             "Max_test_cost": max_cost_per_test_query,
             "Test_size": len(test_data),
-            "Train_acc": train_acc_cost['em'],
+            "Train_F1-score" if metric == "f1" else "Train_Accuracy": train_metrics['f1'] if metric == "f1" else train_metrics['em'],
             "Train_cost": average_train_cost,
             "Max_train_cost": max_cost_per_train_query,
             "Train_size": len(train_data),
@@ -131,7 +137,16 @@ def generate_dataframe_from_cascade(MyCascade, budget_list, train_data, test_dat
     return df
 
 # Run the evaluation
-MyCascade_eval = FrugalGPT.LLMCascade()
+MyCascade_eval = FrugalGPT.LLMCascade(metric=args.metric)
 frugalgpt_df = generate_dataframe_from_cascade(MyCascade_eval, budget_list, train_data, test_data, genparams, name, args.metric)
 print(frugalgpt_df)
-frugalgpt_df.to_csv(f"summary/entity-matching/{args.metric}/summary_{dataname}_e8_frugalgpt_2025_0423.csv")
+
+# check the directory
+output_dir = f"summary/entity-matching/{args.metric}"
+os.makedirs(output_dir, exist_ok=True)
+
+# save the csv file
+output_filename = f"summary_{dataname}_e8_frugalgpt_2025_{args.date}.csv"
+output_path = os.path.join(output_dir, output_filename)
+frugalgpt_df.to_csv(output_path)
+print(f"Results saved to: {output_path}")
