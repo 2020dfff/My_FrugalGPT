@@ -3,30 +3,18 @@ import pandas as pd
 import logging
 import os
 from tqdm import tqdm
-import argparse
 logging.disable(logging.CRITICAL)
 sys.path.append("src/")
 import FrugalGPT
 
-parser = argparse.ArgumentParser(description="Train FrugalGPT for entity matching")
-parser.add_argument('--configpath', type=str, default='config/serviceinfo_abt-buy.json', help='Path to the service configuration file')
-parser.add_argument('--dataname', type=str, default='wdc', help='Dataset name (e.g., abt-buy, wdc, amazon-google, dblp-scholar, walmart-amazon)')
-parser.add_argument('--metric', type=str, default='f1', choices=['f1', 'em'], help='Evaluation metric (default: f1)')
-parser.add_argument('--date', type=str, default='0101', help='Date string for naming (format: MMDD, default: 0101)')
-parser.add_argument('--budgets', type=str, default='0.00001,0.00005,0.0001,0.0005,0.001', 
-                   help='Comma-separated list of budgets (default: "0.00001,0.00005,0.0001,0.0005,0.001")')
-parser.add_argument('--skip', type=int, default=0, help='Skip the first few budgets if they have already been trained (default: 0)')
-args = parser.parse_args()
-
-supported_LLM = FrugalGPT.getservicename(configpath=args.configpath)
+supported_LLM = FrugalGPT.getservicename()
 print("supported LLMs:", supported_LLM)
 supported_LLM_names = [llm.split("/")[1] for llm in supported_LLM]
 print("supported_LLM_names:", supported_LLM_names)
 
 # ## Step 1: Prepare the dataset
 
-dataname = args.dataname
-print(f"Using dataset: {dataname}")
+dataname = "OVERRULING"
 
 # read from data/{dataname}/Queried_{dataname}_all_models_clean_train.csv and data/{dataname}/Queried_{dataname}_all_models_clean_test.csv
 dataset_df = pd.read_csv(f'data/{dataname}/Queried_{dataname}_all_models_clean_train.csv', header=0)
@@ -58,7 +46,7 @@ service_names = [
     'google/gemini-1.5-pro-002',
     'google/gemini-1.0-pro',
     'azure/Phi-3-mini-4k-instruct',
-    # 'azure/Phi-3.5-mini-instruct',
+    'azure/Phi-3.5-mini-instruct',
     'azure/Phi-3-small-8k-instruct',
     'azure/Phi-3-medium-4k-instruct',
     'deepinfra/llama-3-8B',
@@ -84,7 +72,6 @@ def compute_tradeoffs(
     MyCascade=FrugalGPT.LLMCascade(
         score_noise_injection=False,
         db_path="db/SCIQ.sqlite",
-        metric="f1",
     ),
     cascade_depth=3,
 ):
@@ -122,16 +109,14 @@ def compute_tradeoffs(
         MyCascade.save(savepath=f"strategy/{name}/")
     return
 
-name = f'{dataname}_{args.date}'
-budget_list = [float(budget.strip()) for budget in args.budgets.split(',')]
-print(f"Using name: {name}")
-print(f"Using budget list: {budget_list}")
+name = f'{dataname}_0116'
+# budget_list = [0.00001, 0.00005, 0.0001, 0.0005, 0.001] #  , 0.0015
+budget_list = [0.00000705800925925925, 0.0000268302083333333, 0.0000503473032407407, 0.000307842083333333, 0.000440937326388888]
 
 MyCascade = FrugalGPT.LLMCascade(
     score_noise_injection=False,
     db_path=f"db/{dataname}.sqlite",
     batch_build=True,
-    metric=args.metric,
 )
 
 train_data_sample = train_data[0:]  # [0:100]
@@ -143,11 +128,84 @@ compute_tradeoffs(
     name=name,
     service_names=service_names,
     # prefix=prefix,
-    skip=args.skip,  # you can manually skip the first few budgets if they have already been trained.
+    skip=0,  # you can manually skip the first few budgets if they have already been trained.
     MyCascade=MyCascade,
     cascade_depth=3,
 )
 
-print(f"Training completed. Model saved to strategy/{name}/")
-print(f"To evaluate the performance, please run:")
-print(f"python evaluate_entity_matching.py --dataname {dataname} --date {args.date} --metric {args.metric} --budgets \"{args.budgets}\" --configpath {args.configpath}")
+# ## Step 3: Evaluate and save the performance
+
+# read from data/{dataname}/Queried_{dataname}_all_models_clean_train.csv and data/{dataname}/Queried_{dataname}_all_models_clean_test.csv
+dataset_df_test = pd.read_csv(f'data/{dataname}/Queried_{dataname}_all_models_clean_test.csv', header=0)
+print(dataset_df_test.head())
+
+test_data = []
+for index, row in dataset_df_test.iterrows():
+    query = row['query']
+    ref_answer = row['ref_answer']
+    _id = index
+    model_answer = {}
+    for model_name in supported_LLM_names:
+        model_answer[model_name] = row[model_name]
+    test_data.append([query, ref_answer, _id, model_answer])
+
+print(test_data[3])
+
+# get the answer of the model llama-3-8B
+print(test_data[3][3]['llama-3-8B'])
+
+print(len(test_data))
+
+def generate_dataframe_from_cascade(MyCascade,budget_list, train_data, test_data, genparams,name):
+    # Initialize an empty list to store the rows for the DataFrame
+    data = []
+
+    # Iterate through the budget list
+    for budget in tqdm(budget_list):
+        # Load the strategy for the given budget
+        MyCascade.load(loadpath=f"strategy/{name}/", budget=budget)
+        # print("loaded from path:",f"strategy/{name}/")
+        # print("now the budget is:",budget)
+
+        # Get the completion batch for test data
+        train_result = MyCascade.get_completion_batch(queries=train_data, genparams=genparams, budget=budget)
+        test_result = MyCascade.get_completion_batch(queries=test_data, genparams=genparams, budget=budget)
+        # print("cost", test_result['cost'])
+        average_test_cost = test_result['cost'].mean()
+        max_cost_per_test_query = test_result['cost'].max()
+        average_train_cost = train_result['cost'].mean()
+        max_cost_per_train_query = train_result['cost'].max()
+        
+
+        train_acc_cost = FrugalGPT.compute_score(train_result)
+        test_acc_cost = FrugalGPT.compute_score(test_result)
+
+        # Create a row with the schema
+        row = {
+            "Test_acc": test_acc_cost['em'],
+            "Test_cost": average_test_cost, # test_result['cost']
+            "Max_test_cost": max_cost_per_test_query,
+            "Test_size": len(test_data),
+            "Train_acc": train_acc_cost['em'],
+            "Train_cost": average_train_cost, # train_acc_cost['cost'],
+            "Max_train_cost": max_cost_per_train_query,
+            "Train_size": len(train_data),
+            "Budget": budget,
+            "Method": "FrugalGPT",
+            "Provider": "FrugalGPT",
+            "Marker": 1,  # Marker is always 1 for this function
+        }
+
+        # Append the row to the data list
+        data.append(row)
+        # print(row)
+
+    # Create the DataFrame from the data list
+    df = pd.DataFrame(data)
+    return df
+
+MyCascade_eval = FrugalGPT.LLMCascade()
+frugalgpt_df = generate_dataframe_from_cascade(MyCascade_eval, budget_list, train_data, test_data, genparams, name)
+print(frugalgpt_df)
+# frugalgpt_df.to_csv(f"summary/summary_{dataname}_e8_frugalgpt_2024.csv")
+frugalgpt_df.to_csv(f"summary/summary_{dataname}_e8_frugalgpt_2025.csv")

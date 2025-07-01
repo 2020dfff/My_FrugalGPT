@@ -24,6 +24,10 @@ supported_LLM_names = [llm.split("/")[1] for llm in supported_LLM]
 print("supported_LLM_names:", supported_LLM_names)
 
 dataname = "OVERRULING"
+# dataname = "AGNEWS"
+# dataname = "HEADLINES"
+# dataname = "SCIQ"
+
 service_names = [
     'openaichat/gpt-4o-mini',
     'openaichat/gpt-4o',
@@ -77,11 +81,15 @@ print(test_data[3][3]['llama-3-8B'])
 print(len(test_data))
 
 
-name = f'{dataname}_1125'
-budget_list = [0.00001, 0.00005, 0.0001, 0.0005, 0.001] # , 0.0015
+name = f'{dataname}_1125' #0116
+budget_list = [0.00001, 0.00005, 0.0001, 0.0005, 0.001] # 
+# budget_list = [0.0000268302083333333, 0.0000503473032407407, 0.000307842083333333, 0.000440937326388888] # 0.00000705800925925925, overruling
+# budget_list = [0.00002645277, 0.0000597315, 0.00031284855, 0.000529866075] # 0.0000071974, # agnews
+# budget_list = [0.0000302061632492115, 0.0000501699921135646, 0.000125359781151419, 0.000264852511829652] # 0.00000710551853312302, sciq
+# budget_list = [0.00000729, 0.000026296875, 0.00004179045, 0.00014493809, 0.000248624] # headlines
 
 
-def generate_dataframe_from_cascade(MyCascade, budget_list, train_data, test_data, genparams, name):
+def generate_dataframe_from_cascade(MyCascade,budget_list, train_data, test_data, genparams,name):
     # Initialize an empty list to store the rows for the DataFrame
     data = []
 
@@ -89,29 +97,33 @@ def generate_dataframe_from_cascade(MyCascade, budget_list, train_data, test_dat
     for budget in tqdm(budget_list):
         # Load the strategy for the given budget
         MyCascade.load(loadpath=f"strategy/{name}/", budget=budget)
-        print("loaded from path:", f"strategy/{name}/")
-        print("now the budget is:", budget)
-
-        # Get the completion batch for train data
-        print("start train data")
-        train_result = MyCascade.get_completion_batch(queries=train_data, genparams=genparams)
-        print("train_result:", train_result)
-        # Compute the ACC and cost for train data
-        train_acc_cost = FrugalGPT.compute_score(train_result)
+        # print("loaded from path:",f"strategy/{name}/")
+        # print("now the budget is:",budget)
 
         # Get the completion batch for test data
-        test_result = MyCascade.get_completion_batch(queries=test_data, genparams=genparams)
+        train_result = MyCascade.get_completion_batch(queries=train_data, genparams=genparams, budget=budget)
+        test_result, average_cost, acc = MyCascade.get_completion_batch_test(queries=test_data, genparams=genparams,  budget=budget)
+        # print("cost", test_result['cost'])
+        average_test_cost = test_result['cost'].mean()
+        max_cost_per_test_query = test_result['cost'].max()
+        average_train_cost = train_result['cost'].mean()
+        max_cost_per_train_query = train_result['cost'].max()
+        
 
-        # Compute the ACC and cost for test data
+        train_acc_cost = FrugalGPT.compute_score(train_result)
         test_acc_cost = FrugalGPT.compute_score(test_result)
 
         # Create a row with the schema
         row = {
-            "Test_acc": test_acc_cost['em'],
-            "Test_cost": test_acc_cost['cost'],
+            # "Test_acc": test_acc_cost['em'],
+            # "Test_cost": average_test_cost, # test_result['cost']
+            "Test_acc": acc,
+            "Test_cost": average_cost,
+            "Max_test_cost": max_cost_per_test_query,
             "Test_size": len(test_data),
             "Train_acc": train_acc_cost['em'],
-            "Train_cost": train_acc_cost['cost'],
+            "Train_cost": average_train_cost, # train_acc_cost['cost'],
+            "Max_train_cost": max_cost_per_train_query,
             "Train_size": len(train_data),
             "Budget": budget,
             "Method": "FrugalGPT",
@@ -121,14 +133,15 @@ def generate_dataframe_from_cascade(MyCascade, budget_list, train_data, test_dat
 
         # Append the row to the data list
         data.append(row)
-        print(row)
+        # print(row)
 
     # Create the DataFrame from the data list
     df = pd.DataFrame(data)
-
     return df
 
 MyCascade_eval = FrugalGPT.LLMCascade()
 frugalgpt_df = generate_dataframe_from_cascade(MyCascade_eval, budget_list, train_data, test_data, genparams, name)
 print(frugalgpt_df)
-frugalgpt_df.to_csv(f"summary/summary_{dataname}_e8_frugalgpt_2024.csv")
+# frugalgpt_df.to_csv(f"summary/summary_{dataname}_e8_frugalgpt_2024.csv")
+# frugalgpt_df.to_csv(f"summary/summary_{dataname}_e8_frugalgpt_2025_final.csv")
+frugalgpt_df.to_csv(f"summary/summary_{dataname}_e8_frugalgpt_2025_0410.csv")

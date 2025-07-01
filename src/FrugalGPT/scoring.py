@@ -130,6 +130,16 @@ class Score(object):
               #score_type='DistilBert',
               ):
         
+        # 将F1分数转换为二分类标签
+        # 检查train_labels是否包含浮点数(可能是F1分数)
+        contains_float = any(isinstance(label, float) and 0 <= label <= 1 for label in train_labels)
+        
+        if contains_float:
+            print("检测到F1分数, 将其转换为二分类标签")
+            # 将F1分数转换为二分类标签：大于等于0.5为1，小于0.5为0
+            binary_labels = [1 if label >= 0.5 else 0 for label in train_labels]
+            train_labels = binary_labels
+            
         train_texts, val_texts, train_labels, val_labels = train_test_split(train_texts, train_labels, test_size=.4)
         #print("train_text 0",train_texts[0])
         #print("val_text 0",val_texts[0])

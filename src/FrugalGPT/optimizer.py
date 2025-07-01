@@ -19,12 +19,19 @@ def compute_distance_batch(responses,selected_id,scores):
     return dists
     
 
-def compute_loss_and_cost_batch(response,labels,metric):
+def compute_loss_and_cost_batch(response, labels, metric):
     # print("Debug: response is",response)
     # print("Debug: labels is",labels)
-    results_eval = utils.evaluate_batch(response,labels)
+    results_eval = utils.evaluate_batch(response, labels)
     costs = results_eval['cost_list']
-    loss = results_eval[metric+"_list"]
+    
+    # 如果是f1度量，使用f1值作为损失
+    if metric == "f1" and "f1" in results_eval:
+        loss = results_eval['f1_list'] if 'f1_list' in results_eval else results_eval['em_list']
+    else:
+        # 对于其他度量，使用原来的方式
+        loss = results_eval[metric+"_list"]
+    
     return loss, costs
 
 def construct_data(responses,
@@ -57,7 +64,7 @@ def construct_data(responses,
     #logging.critical("SHOW Distance mat",d_mat[0:20,])
     return L_mat,C_mat,d_mat
 
-def optimize(L_mat,C_mat,d_mat,budget):
+def optimize(L_mat, C_mat, d_mat, budget, metric="em"):
     #return 0.1, [0,1,1,1]
     # print("budget is",budget)
     # with open('file.txt', 'w') as f:
@@ -87,6 +94,10 @@ def optimize(L_mat,C_mat,d_mat,budget):
         cost = numpy.sum(numpy.multiply(e_full,C_mat))
         if(cost>budget*len(L_mat)):
             return 10000
+        
+        # 当使用F1-score时，我们希望最大化F1值
+        # L_mat中存储的对于EM就是准确率，对于F1就是F1值
+        # 在这两种情况下我们都是希望最大化，所以返回负数供优化器最小化
         return -acc
 
     def g(qual):

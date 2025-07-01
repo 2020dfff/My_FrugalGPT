@@ -1,0 +1,93 @@
+{     
+    "google":
+    {   
+        "gemini-1.5-flash-002":
+        {
+            "cost_input":0.000000075,
+            "cost_output":0.0000003,
+            "cost_fixed":0,
+            "fixed_size":0
+        },
+        
+        "gemini-1.5-pro-002":
+        {
+            "cost_input":0.0000035,
+            "cost_output":0.0000105,
+            "cost_fixed":0,
+            "fixed_size":0
+        },
+        
+        "gemini-1.0-pro":
+        {
+            "cost_input":0.0000005,
+            "cost_output":0.0000015,
+            "cost_fixed":0,
+            "fixed_size":0
+        }                    
+    },
+
+    "openaichat":
+    {   
+        "gpt-4o-mini":
+        {   
+        "cost_input":0.00000015,
+        "cost_output":0.0000006,
+        "cost_fixed":0,
+        "fixed_size":0  
+        },
+
+        "gpt-4o":
+        {
+            "cost_input":0.000005,
+            "cost_output":0.000015,
+            "cost_fixed":0,
+            "fixed_size":0  
+        }           
+    },
+       
+    "azure":
+    {   
+        "Phi-3-mini-4k-instruct":
+        {
+            "cost_input":0.00000013,
+            "cost_output":0.00000052,
+            "cost_fixed":0,
+            "fixed_size":0 
+        },
+
+        "Phi-3-small-8k-instruct":
+        {
+            "cost_input":0.00000015,
+            "cost_output":0.0000006,
+            "cost_fixed":0,
+            "fixed_size":0
+        },
+        
+        "Phi-3-medium-4k-instruct":
+        {
+            "cost_input":0.00000017,
+            "cost_output":0.00000068,
+            "cost_fixed":0,
+            "fixed_size":0
+        }                    
+    },
+
+    "deepinfra":
+    {   
+        "llama-3-8B":
+        {
+            "cost_input":0.000000055,
+            "cost_output":0.000000055,
+            "cost_fixed":0,
+            "fixed_size":0
+        },
+
+        "llama-3-70B":
+        {
+            "cost_input":0.00000035,
+            "cost_output":0.0000004,
+            "cost_fixed":0,
+            "fixed_size":0
+        }
+    }
+}

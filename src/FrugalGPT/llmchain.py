@@ -97,7 +97,7 @@ class SingleAPI(Strategy):
     
 class LLMChain(Strategy):
     def __init__(self,
-                 metric="em_mc",
+                 metric="em",
                  L_max=2,
                  strategy_path="strategy/temp2.json",):
         self.metric = metric    
@@ -158,7 +158,7 @@ class LLMChain(Strategy):
                                                        scores=scores,
                                                        )
         # optimze results
-        obj, var, qual = optimizer.optimize(L_mat, C_mat, d_mat, budget=self.budget)
+        obj, var, qual = optimizer.optimize(L_mat, C_mat, d_mat, budget=self.budget, metric=self.metric)
         result = {"acc": obj, "model_ids": selected_id, "thres": var, "quantile": qual}
         return result
     

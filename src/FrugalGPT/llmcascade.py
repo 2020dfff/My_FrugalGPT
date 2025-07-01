@@ -69,6 +69,7 @@ class LLMCascade(object):
         self.eps=1e-8
         self.score_noise_injection = score_noise_injection
         self.batch_build = batch_build
+        self.metric = metric  # 保存metric参数用于后续评估
         return 
 
     def load(self,loadpath="strategy/HEADLINES/",budget=0.01):
@@ -124,7 +125,7 @@ class LLMCascade(object):
               budget=0.1,
               cascade_depth=3,
               service_names =['openaichat/gpt-3.5-turbo','openaichat/gpt-4'],
-              metric="em",
+              metric=None,
               genparams=GenerationParameter(max_tokens=50, temperature=0.1, stop=['\n']),
               no_scorer_train=False,
               score_type='DistilBert',
@@ -133,12 +134,17 @@ class LLMCascade(object):
         self.no_scorer_train = no_scorer_train
         self.score_type = score_type
         self.prefix = prefix
+        
+        # 如果传入了metric参数，就使用传入的，否则使用实例初始化时的metric
+        if metric is not None:
+            self.metric = metric
+            
         # Three major steps
         # Step 1: evaluate all services on the given dataset
         train, test = train_test_split(trainingdata, test_size=0.2)
         print("train and test size",len(train),len(test))
-        model_perf_train = self.evaluateall(train,service_names=service_names,metric=metric,genparams=genparams)
-        model_perf_test = self.evaluateall(test,service_names=service_names,metric=metric,genparams=genparams)
+        model_perf_train = self.evaluateall(train,service_names=service_names,metric=self.metric,genparams=genparams)
+        model_perf_test = self.evaluateall(test,service_names=service_names,metric=self.metric,genparams=genparams)
         # print("model_perf_train",model_perf_train)
         # Step 2: Build the scorer
         if(no_scorer_train):
@@ -149,7 +155,7 @@ class LLMCascade(object):
             scorers = self.build_scorers(model_perf_train)
         # Step 3: Build the cascade
         #self.build_cascade(model_perf_test, scorers = scorers, budget=budget, cascade_depth=cascade_depth,metric=metric)
-        self.build_cascade(model_perf_train, scorers = scorers, budget=budget, cascade_depth=cascade_depth,metric=metric)
+        self.build_cascade(model_perf_train, scorers = scorers, budget=budget, cascade_depth=cascade_depth,metric=self.metric)
         return model_perf_test
     
     # def get_completion(self, query,genparams):
@@ -260,6 +266,9 @@ class LLMCascade(object):
 
         # initialize the variables
         tp, fp, tn, fn = 0, 0, 0, 0
+        
+        # Track scores and results for each model
+        model_scores = {}  # {service_name: (score, result)}
 
         while(1):
             service_name, score_thres = LLMChain.nextAPIandScore()
@@ -268,23 +277,32 @@ class LLMCascade(object):
             # answer get from data
             res = query[3][service_name.split("/")[1]]
             new_cost = cost + price_of(query[0], service_name.split("/")[1])
-            if new_cost > budget:
-                print("Budget exceeded, stop at", service_name)
-                if metric == "f1":
-                    tp, fp, tn, fn = evaluate(prediction=last_res, ground_truth=query[1], metric="f1")
-                elif metric == "em":
-                    is_correct = evaluate(prediction=last_res, ground_truth=query[1], metric="em")
-                res = last_res
-                cost = last_cost
-                break
-            cost = new_cost
-            last_res = res
-            last_cost = cost
+            
+            # Store the score and result for this model
             t1 = query[0] + " " + str(res)
             t2 = t1.removeprefix(prefix)
             score = self.MyScores[service_name].get_score(scorer_text(t2))
             if self.score_noise_injection:
                 score += random.random() * self.eps
+            model_scores[service_name] = (score, res)
+            
+            if new_cost > budget:
+                print("Budget exceeded, stop at", service_name)
+                # Find the model with highest score
+                best_service = max(model_scores.items(), key=lambda x: x[1][0])[0]
+                best_result = model_scores[best_service][1]
+                if metric == "f1":
+                    tp, fp, tn, fn = evaluate(prediction=best_result, ground_truth=query[1], metric="f1")
+                elif metric == "em":
+                    is_correct = evaluate(prediction=best_result, ground_truth=query[1], metric="em")
+                res = best_result
+                cost = price_of(query[0], best_service.split("/")[1])
+                break
+                
+            cost = new_cost
+            last_res = res
+            last_cost = cost
+            
             if score > 1 - score_thres:
                 # Evaluate the result
                 if metric == "f1":
@@ -404,6 +422,10 @@ class LLMCascade(object):
         model = self.scorer[name]
         scores_dict = dict()
         rawdata = data[['_id','query','answer']].to_dict(orient='records')
+        
+        # Check if there is a f1_score column, if so, use it
+        has_f1_score = 'f1_score' in data.columns
+        
         for ptr in rawdata:
             text0 = ptr['query']+" "+ptr['answer']
             text0 = text0.removeprefix(self.prefix)
@@ -411,6 +433,15 @@ class LLMCascade(object):
             score1 = self.MyScores[name].get_score(text)
             if(self.score_noise_injection==True):
               score1+=random.random()*eps
+            
+            # Find the corresponding data row
+            row_id = ptr['_id']
+            data_row = data[data['_id'] == row_id]
+            
+            if has_f1_score and self.metric == 'f1' and not data_row.empty:
+                original_f1 = data_row['f1_score'].values[0]
+                score1 = score1 * (0.5 + 0.5 * original_f1)
+                
             scores_dict[ptr['_id']] = score1
         return scores_dict
 
@@ -424,16 +455,39 @@ class LLMCascade(object):
             api_responses[name] = res_and_eval
         return api_responses
 
-    def _evaluate(self,response, metric='em'):
+    def _evaluate(self,response, metric=None):
+        if metric is None:
+            metric = self.metric
+            
         for i in range(len(response)):
             ptr = response[i]
-            score = evaluate(prediction = ptr['answer'], ground_truth=ptr['true_answer'], metric=metric)
-            response[i]['quality'] = score
+            if metric == "f1":
+                # For F1, we need to convert (tp,fp,tn,fn) to a single scalar value
+                tp, fp, tn, fn = evaluate(prediction=ptr['answer'], ground_truth=ptr['true_answer'], metric=metric)
+                # Calculate F1 score as the quality score
+                precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+                recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+                f1_score = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+                
+                # Transform F1 score to a binary score to be compatible with scoring.py
+                # Regarded as positive if F1>=0.5, otherwise regarded as negative
+                binary_f1_score = 1 if f1_score >= 0.5 else 0
+                
+                # Keep the original F1 score for reference
+                response[i]['f1_score'] = f1_score
+                # Store the binary F1 score as the quality score
+                response[i]['quality'] = binary_f1_score
+            else:
+                # For other metrics, directly use the evaluate result
+                response[i]['quality'] = evaluate(prediction=ptr['answer'], ground_truth=ptr['true_answer'], metric=metric)
         result = pandas.DataFrame(response)
         return result
     
-    def build_cascade(self,model_perf_test, scorers, budget, cascade_depth,metric):
-        LLMChain1 = LLMChain(metric=metric,L_max=cascade_depth)
+    def build_cascade(self,model_perf_test, scorers, budget, cascade_depth, metric=None):
+        if metric is None:
+            metric = self.metric
+            
+        LLMChain1 = LLMChain(metric=metric, L_max=cascade_depth)
         LLMChain1.setbudget(budget=budget)
         responses = dict()
         scores = dict()
@@ -489,6 +543,13 @@ def table2json(df):
         if 'quality' not in result_dict:
             result_dict['quality'] = dict()
         result_dict['quality'][_id]= quality
+        
+        # Add f1_score if it exists
+        if 'f1_score' in df.columns:
+            f1_score = row['f1_score']
+            if 'f1_score' not in result_dict:
+                result_dict['f1_score'] = dict()
+            result_dict['f1_score'][_id] = f1_score
 
     result_dict['sp'] = dict()
     result_dict['logprobs'] = dict()
